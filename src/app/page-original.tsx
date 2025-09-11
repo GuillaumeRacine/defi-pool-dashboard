@@ -65,7 +65,7 @@ export default function HomePage() {
         try {
           // Create universal ID from chain and pool identifier
           const blockchain = pool.chain?.toLowerCase() || 'unknown';
-          const contractAddress = pool.pool || pool.poolMeta?.poolId || `pool-${pool.pool}`;
+          const contractAddress = pool.pool || (pool as any).poolMeta?.poolId || `pool-${pool.pool}`;
           const universalId = `${blockchain}:${contractAddress}`;
 
           // Get historical data
