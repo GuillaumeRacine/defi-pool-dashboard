@@ -1,117 +1,527 @@
 /**
- * Pool Detail Page
- * Displays comprehensive pool information with historical charts and metadata
+ * Pool Analytics Page - Complete Time Series Auditing
+ * Shows every data point with detailed breakdown for data auditing
  */
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { format, parseISO } from 'date-fns';
-import PoolChart from '@/components/PoolChart';
 import { defiLlamaAPI } from '@/lib/defi-api';
-import { PoolData } from '@/types/pool';
+import { PoolTimeseriesPoint } from '@/types/pool';
 
-export default function PoolDetailPage() {
+interface PoolDetails {
+  pool: string;
+  project: string;
+  symbol: string;
+  chain: string;
+  tvlUsd: number;
+  apy: number;
+  apyBase?: number;
+  apyReward?: number;
+  count7d?: number;
+  volumeUsd1d?: number;
+  volumeUsd7d?: number;
+  feesUsd1d?: number;
+  feesUsd7d?: number;
+  il7d?: number;
+  apyMean30d?: number;
+  stablecoin?: boolean;
+  exposure?: string;
+  outlier?: boolean;
+  poolMeta?: string;
+  mu?: number;
+  sigma?: number;
+  predictions?: any;
+}
+
+export default function PoolAnalyticsPage() {
   const params = useParams();
   const router = useRouter();
-  const poolId = decodeURIComponent(params.poolId as string);
+  const poolId = params.poolId as string;
   
-  const [pool, setPool] = useState<PoolData | null>(null);
+  const [poolDetails, setPoolDetails] = useState<PoolDetails | null>(null);
+  const [timeSeriesData, setTimeSeriesData] = useState<PoolTimeseriesPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
+  const [selectedMetric, setSelectedMetric] = useState<'tvlUsd' | 'apy' | 'volumeUsd1d' | 'feesUsd1d'>('tvlUsd');
+  const [dateRange, setDateRange] = useState<'30d' | '90d' | '365d' | 'all'>('all');
+  const [searchDate, setSearchDate] = useState('');
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    if (poolId) {
-      loadPoolDetails();
-    }
-  }, [poolId]);
+    loadPoolData();
+  }, [poolId, dateRange]);
 
-  const loadPoolDetails = async () => {
+  const loadPoolData = async () => {
+    if (!poolId) return;
+    
     try {
       setLoading(true);
       setError(null);
 
-      // Extract contract address from universal ID
-      const parts = poolId.split(':');
-      const contractAddress = parts.length > 1 ? parts[1] : poolId;
-      const blockchain = parts.length > 1 ? parts[0] : 'unknown';
-
-      // For now, we'll get fresh data from DefiLlama
-      // In a real app, this would come from a database or cache
-      const response = await defiLlamaAPI.getCurrentYields();
+      // Get pool details from the pools list
+      const poolsResponse = await defiLlamaAPI.getHighTVLPools();
+      const pool = poolsResponse.data?.find((p: any) => p.pool === poolId);
       
-      if (response.error) {
-        throw new Error(response.error);
+      if (!pool) {
+        setError('Pool not found');
+        return;
+      }
+      
+      setPoolDetails(pool);
+
+      // Get historical time series data
+      const days = dateRange === '30d' ? 30 : dateRange === '90d' ? 90 : dateRange === '365d' ? 365 : 1825;
+      const timeSeriesResponse = await defiLlamaAPI.getPoolTimeSeries(poolId, days);
+      
+      if (timeSeriesResponse.error) {
+        setError(timeSeriesResponse.error);
+        return;
       }
 
-      // Find the specific pool
-      const poolData = response.data?.find(p => 
-        p.pool === contractAddress || 
-        `${p.chain?.toLowerCase()}:${p.pool}` === poolId
-      );
-
-      if (!poolData) {
-        throw new Error('Pool not found');
-      }
-
-      // Get historical data
-      const historicalResponse = await defiLlamaAPI.getPoolHistoricalData(poolData.pool);
-      const timeseries = historicalResponse.data || [];
-
-      // Create pool data object
-      const transformedPool: PoolData = {
-        universal_id: poolId,
-        contract_address: contractAddress,
-        blockchain: blockchain as any,
-        pool_name: poolData.symbol || 'Unknown Pool',
-        protocol: poolData.project || 'Unknown',
-        timeseries: timeseries,
-        data_points: timeseries.length,
-        data_quality_score: 0,
-        validation_passed: false,
-        data_sources: ['defillama'],
-        last_updated: new Date().toISOString(),
-        created_at: new Date().toISOString(),
-        composition: {
-          composition_note: 'Pool composition data requires additional API integration',
-          explorer_links: {
-            defillama: `https://defillama.com/pool/${poolData.pool}`
-          }
-        }
-      };
-
-      // Validate data quality
-      const validation = defiLlamaAPI.validatePoolData(transformedPool);
-      transformedPool.data_quality_score = validation.score;
-      transformedPool.validation_passed = validation.passed;
-
-      // Add current metrics from pool data
-      if (poolData.tvlUsd || poolData.apy) {
-        transformedPool.orca_augmentation = {
-          orca_metrics: {
-            apy_24h: poolData.apy || 0,
-            current_liquidity: poolData.tvlUsd || 0,
-            volume_24h: 0
-          },
-          augmented_at: new Date().toISOString()
-        };
-      }
-
-      setPool(transformedPool);
+      setTimeSeriesData(timeSeriesResponse.data || []);
     } catch (err) {
-      console.error('Failed to load pool details:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load pool details');
+      console.error('Failed to load pool data:', err);
+      setError('Failed to load pool data');
     } finally {
       setLoading(false);
     }
   };
 
+  const formatValue = (value: any, metric: string): string => {
+    if (value === null || value === undefined || isNaN(value)) return '-';
+    
+    switch (metric) {
+      case 'tvlUsd':
+      case 'volumeUsd1d':
+      case 'feesUsd1d':
+        if (value >= 1e9) return `$${(value / 1e9).toFixed(2)}B`;
+        if (value >= 1e6) return `$${(value / 1e6).toFixed(2)}M`;
+        if (value >= 1e3) return `$${(value / 1e3).toFixed(2)}K`;
+        return `$${value.toFixed(2)}`;
+      case 'apy':
+      case 'apyBase':
+      case 'apyReward':
+        return `${value.toFixed(2)}%`;
+      default:
+        return value.toLocaleString();
+    }
+  };
+
+  const formatDate = (dateStr: string): string => {
+    return new Date(dateStr).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  const formatDateDetailed = (dateStr: string): string => {
+    return new Date(dateStr).toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  };
+
+  const getValueForMetric = (point: PoolHistoricalPoint, metric: string): number | null => {
+    switch (metric) {
+      case 'tvlUsd': return point.tvlUsd || null;
+      case 'apy': return point.apy || null;
+      case 'volumeUsd1d': return point.volumeUsd1d || null;
+      case 'feesUsd1d': return point.feesUsd1d || null;
+      default: return null;
+    }
+  };
+
+  // Calculate data completeness metrics for auditing
+  const calculateDataCompleteness = (data: PoolHistoricalPoint[]) => {
+    if (data.length === 0) {
+      return {
+        totalDays: 0,
+        expectedDays: 0,
+        missingDays: 0,
+        completeness: 0,
+        gaps: [],
+        oldestDate: null,
+        newestDate: null
+      };
+    }
+
+    // Sort data by date to ensure correct order
+    const sortedData = [...data].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const oldestDate = sortedData[0].date;
+    const newestDate = sortedData[sortedData.length - 1].date;
+    
+    // Calculate expected number of days
+    const oldestTime = new Date(oldestDate).getTime();
+    const newestTime = new Date(newestDate).getTime();
+    const expectedDays = Math.floor((newestTime - oldestTime) / (24 * 60 * 60 * 1000)) + 1;
+    
+    // Find gaps
+    const gaps: string[] = [];
+    const dateSet = new Set(sortedData.map(point => point.date));
+    
+    for (let i = 0; i < expectedDays; i++) {
+      const currentDate = new Date(oldestTime + i * 24 * 60 * 60 * 1000);
+      const dateStr = currentDate.toISOString().split('T')[0];
+      if (!dateSet.has(dateStr)) {
+        gaps.push(dateStr);
+      }
+    }
+    
+    const completeness = ((expectedDays - gaps.length) / expectedDays) * 100;
+    
+    return {
+      totalDays: sortedData.length,
+      expectedDays,
+      missingDays: gaps.length,
+      completeness: Math.round(completeness * 100) / 100,
+      gaps: gaps.slice(0, 10), // Show first 10 gaps to avoid overwhelming UI
+      oldestDate,
+      newestDate
+    };
+  };
+
+  const dataCompleteness = calculateDataCompleteness(timeSeriesData);
+
+  const filteredData = timeSeriesData
+    .filter(point => {
+      if (!searchDate) return true;
+      return point.date.includes(searchDate);
+    })
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()); // Sort newest to oldest
+
+  const toggleRowExpansion = (date: string) => {
+    const newExpanded = new Set(expandedRows);
+    if (newExpanded.has(date)) {
+      newExpanded.delete(date);
+    } else {
+      newExpanded.add(date);
+    }
+    setExpandedRows(newExpanded);
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black">
+        <div className="max-w-7xl mx-auto px-4 py-8">
+          <div className="animate-pulse">
+            <div className="h-8 bg-gray-800 rounded mb-4"></div>
+            <div className="h-64 bg-gray-800 rounded"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-black">
+        <div className="max-w-7xl mx-auto px-4 py-8">
+          <div className="bg-red-900/20 border border-red-800 rounded-lg p-4">
+            <p className="text-red-400">{error}</p>
+            <Link href="/pools" className="text-blue-400 hover:text-blue-300 mt-2 inline-block">
+              ← Back to Pools
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-black">
+      <div className="max-w-7xl mx-auto px-4 py-8">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <Link href="/pools" className="text-blue-400 hover:text-blue-300 mb-2 inline-block">
+              ← Back to Pools
+            </Link>
+            <h1 className="text-2xl font-bold text-white">
+              Pool Analytics: {poolDetails?.symbol || poolId}
+            </h1>
+            <p className="text-gray-400 text-sm">
+              {poolDetails?.project} • {poolDetails?.chain}
+            </p>
+          </div>
+        </div>
+
+        {/* Pool Summary */}
+        {poolDetails && (
+          <div className="bg-gray-900 rounded-lg p-6 border border-gray-800 mb-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div>
+                <p className="text-gray-400 text-sm">Current TVL</p>
+                <p className="text-white text-lg font-semibold">
+                  {formatValue(poolDetails.tvlUsd, 'tvlUsd')}
+                </p>
+              </div>
+              <div>
+                <p className="text-gray-400 text-sm">APY</p>
+                <p className="text-white text-lg font-semibold">
+                  {formatValue(poolDetails.apy, 'apy')}
+                </p>
+              </div>
+              <div>
+                <p className="text-gray-400 text-sm">24h Volume</p>
+                <p className="text-white text-lg font-semibold">
+                  {formatValue(poolDetails.volumeUsd1d, 'volumeUsd1d')}
+                </p>
+              </div>
+              <div>
+                <p className="text-gray-400 text-sm">24h Fees</p>
+                <p className="text-white text-lg font-semibold">
+                  {formatValue(poolDetails.feesUsd1d, 'feesUsd1d')}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Data Completeness Metrics */}
+        <div className="bg-gray-900 rounded-lg p-4 border border-gray-800 mb-6">
+          <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
+            📊 Data Completeness
+            <span className="text-xs text-gray-400">(for data auditing)</span>
+          </h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div>
+              <p className="text-gray-400">Total Data Points</p>
+              <p className="text-white font-semibold">{dataCompleteness.totalDays.toLocaleString()} days</p>
+            </div>
+            <div>
+              <p className="text-gray-400">Expected Days</p>
+              <p className="text-white font-semibold">{dataCompleteness.expectedDays.toLocaleString()} days</p>
+            </div>
+            <div>
+              <p className="text-gray-400">Missing Days</p>
+              <p className={`font-semibold ${dataCompleteness.missingDays === 0 ? 'text-green-400' : 'text-red-400'}`}>
+                {dataCompleteness.missingDays.toLocaleString()} days
+              </p>
+            </div>
+            <div>
+              <p className="text-gray-400">Completeness</p>
+              <p className={`font-semibold ${dataCompleteness.completeness >= 99 ? 'text-green-400' : dataCompleteness.completeness >= 95 ? 'text-yellow-400' : 'text-red-400'}`}>
+                {dataCompleteness.completeness}%
+              </p>
+            </div>
+          </div>
+          
+          {/* Date Range Info */}
+          {dataCompleteness.oldestDate && dataCompleteness.newestDate && (
+            <div className="mt-3 pt-3 border-t border-gray-700">
+              <p className="text-gray-400 text-xs">
+                Data Range: {formatDate(dataCompleteness.oldestDate)} → {formatDate(dataCompleteness.newestDate)}
+              </p>
+            </div>
+          )}
+          
+          {/* Show gaps if any exist */}
+          {dataCompleteness.gaps.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-gray-700">
+              <p className="text-yellow-400 text-xs font-medium mb-2">⚠️ Data Gaps Detected:</p>
+              <div className="flex flex-wrap gap-1">
+                {dataCompleteness.gaps.map((gap, index) => (
+                  <span key={gap} className="bg-red-900/30 text-red-300 px-2 py-1 rounded text-xs font-mono">
+                    {formatDate(gap)}
+                  </span>
+                ))}
+                {dataCompleteness.missingDays > dataCompleteness.gaps.length && (
+                  <span className="text-gray-500 text-xs">
+                    +{dataCompleteness.missingDays - dataCompleteness.gaps.length} more...
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Controls */}
+        <div className="bg-gray-900 rounded-lg p-4 border border-gray-800 mb-6">
+          <div className="flex flex-wrap gap-4 items-center">
+            {/* Date Range Selector */}
+            <div>
+              <label className="text-gray-300 text-sm mr-2">Time Range:</label>
+              <select 
+                value={dateRange}
+                onChange={(e) => setDateRange(e.target.value as any)}
+                className="bg-gray-800 text-white px-3 py-1 rounded border border-gray-700 text-sm"
+              >
+                <option value="30d">Last 30 Days</option>
+                <option value="90d">Last 90 Days</option>
+                <option value="365d">Last Year</option>
+                <option value="all">All Time</option>
+              </select>
+            </div>
+
+            {/* Metric Selector */}
+            <div>
+              <label className="text-gray-300 text-sm mr-2">Primary Metric:</label>
+              <select 
+                value={selectedMetric}
+                onChange={(e) => setSelectedMetric(e.target.value as any)}
+                className="bg-gray-800 text-white px-3 py-1 rounded border border-gray-700 text-sm"
+              >
+                <option value="tvlUsd">TVL (USD)</option>
+                <option value="apy">APY (%)</option>
+                <option value="volumeUsd1d">24h Volume</option>
+                <option value="feesUsd1d">24h Fees</option>
+              </select>
+            </div>
+
+            {/* Date Search */}
+            <div>
+              <label className="text-gray-300 text-sm mr-2">Search Date:</label>
+              <input 
+                type="text"
+                placeholder="YYYY-MM-DD"
+                value={searchDate}
+                onChange={(e) => setSearchDate(e.target.value)}
+                className="bg-gray-800 text-white px-3 py-1 rounded border border-gray-700 text-sm w-32"
+              />
+            </div>
+
+            <div className="text-gray-400 text-sm">
+              {filteredData.length} data points
+            </div>
+          </div>
+        </div>
+
+        {/* Time Series Data Table */}
+        <div className="bg-gray-900 rounded-lg border border-gray-800">
+          <div className="p-4 border-b border-gray-800">
+            <h2 className="text-lg font-semibold text-white">
+              Complete Time Series Data - {selectedMetric.toUpperCase()}
+            </h2>
+            <p className="text-gray-400 text-sm">
+              Click any row to expand and see all metrics for that date
+            </p>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-800">
+                <tr>
+                  <th className="text-left p-3 text-gray-300 text-sm font-medium">Date</th>
+                  <th className="text-right p-3 text-gray-300 text-sm font-medium">
+                    {selectedMetric === 'tvlUsd' ? 'TVL (USD)' : 
+                     selectedMetric === 'apy' ? 'APY (%)' :
+                     selectedMetric === 'volumeUsd1d' ? '24h Volume' : '24h Fees'}
+                  </th>
+                  <th className="text-right p-3 text-gray-300 text-sm font-medium">Change</th>
+                  <th className="text-center p-3 text-gray-300 text-sm font-medium">Details</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredData.map((point, index) => {
+                  const value = getValueForMetric(point, selectedMetric);
+                  const prevValue = index < filteredData.length - 1 ? 
+                    getValueForMetric(filteredData[index + 1], selectedMetric) : null;
+                  const change = value && prevValue ? ((value - prevValue) / prevValue * 100) : null;
+                  const isExpanded = expandedRows.has(point.date);
+
+                  return (
+                    <React.Fragment key={point.date}>
+                      <tr 
+                        className="border-b border-gray-800 hover:bg-gray-800/50 cursor-pointer"
+                        onClick={() => toggleRowExpansion(point.date)}
+                      >
+                        <td className="p-3 text-white font-mono text-sm">
+                          {formatDate(point.date)}
+                        </td>
+                        <td className="p-3 text-white text-sm text-right font-medium">
+                          {formatValue(value, selectedMetric)}
+                        </td>
+                        <td className={`p-3 text-sm text-right font-medium ${
+                          change === null ? 'text-gray-500' :
+                          change > 0 ? 'text-green-400' : 
+                          change < 0 ? 'text-red-400' : 'text-gray-400'
+                        }`}>
+                          {change === null ? '-' : 
+                           change > 0 ? `+${change.toFixed(2)}%` : `${change.toFixed(2)}%`}
+                        </td>
+                        <td className="p-3 text-center">
+                          <button className="text-blue-400 hover:text-blue-300 text-sm">
+                            {isExpanded ? '▲' : '▼'}
+                          </button>
+                        </td>
+                      </tr>
+                      
+                      {isExpanded && (
+                        <tr className="bg-gray-800/30">
+                          <td colSpan={4} className="p-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                              <div className="bg-gray-800 rounded p-3">
+                                <p className="text-gray-400 text-xs uppercase tracking-wide">Date Details</p>
+                                <p className="text-white text-sm font-medium">{formatDateDetailed(point.date)}</p>
+                                <p className="text-gray-400 text-xs mt-1">Timestamp: {point.timestamp}</p>
+                              </div>
+                              
+                              <div className="bg-gray-800 rounded p-3">
+                                <p className="text-gray-400 text-xs uppercase tracking-wide">TVL</p>
+                                <p className="text-white text-sm font-medium">
+                                  {formatValue(point.tvlUsd, 'tvlUsd')}
+                                </p>
+                                <p className="text-gray-400 text-xs">Total Value Locked</p>
+                              </div>
+                              
+                              <div className="bg-gray-800 rounded p-3">
+                                <p className="text-gray-400 text-xs uppercase tracking-wide">APY</p>
+                                <p className="text-white text-sm font-medium">
+                                  {formatValue(point.apy, 'apy')}
+                                </p>
+                                <div className="text-xs text-gray-400 mt-1">
+                                  <div>Base: {formatValue(point.apyBase, 'apy')}</div>
+                                  <div>Reward: {formatValue(point.apyReward, 'apy')}</div>
+                                </div>
+                              </div>
+                              
+                              <div className="bg-gray-800 rounded p-3">
+                                <p className="text-gray-400 text-xs uppercase tracking-wide">24h Activity</p>
+                                <div className="text-white text-sm">
+                                  <div>Vol: {formatValue(point.volumeUsd1d, 'volumeUsd1d')}</div>
+                                  <div>Fees: {formatValue(point.feesUsd1d, 'feesUsd1d')}</div>
+                                </div>
+                              </div>
+                            </div>
+                            
+                            {/* Raw Data Section for Debugging */}
+                            <details className="mt-4">
+                              <summary className="text-gray-400 text-xs cursor-pointer hover:text-gray-300">
+                                🔍 Raw Data (for debugging)
+                              </summary>
+                              <pre className="bg-black rounded p-2 mt-2 text-xs text-gray-300 overflow-x-auto">
+                                {JSON.stringify(point, null, 2)}
+                              </pre>
+                            </details>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {filteredData.length === 0 && (
+            <div className="p-8 text-center text-gray-400">
+              No data points found for the selected criteria
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
   const handleRefresh = async () => {
     setRefreshing(true);
-    await loadPoolDetails();
+    await loadPoolData();
     setRefreshing(false);
   };
 
@@ -247,8 +657,12 @@ export default function PoolDetailPage() {
         {pool.timeseries.length > 0 && (
           <div className="mb-8">
             <PoolChart 
-              data={pool.timeseries} 
-              title={`${pool.pool_name} Historical Data`}
+              poolId={pool.contract_address}
+              chain={pool.blockchain}
+              chartType="tvl"
+              title={`${pool.pool_name} TVL History`}
+              color="#3B82F6"
+              days={30}
             />
           </div>
         )}
