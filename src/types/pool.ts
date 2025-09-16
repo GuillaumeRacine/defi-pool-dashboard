@@ -5,7 +5,8 @@
 
 export interface PoolTimeseriesPoint {
   date: string;
-  tvl_usd: number;
+  tvl_usd?: number;
+  tvlUsd?: number; // Support both formats
   apy?: number;
   volume_24h?: number;
   fees_24h?: number;
