@@ -35,7 +35,7 @@ export default function ChainAnalytics() {
           throw new Error(`Failed to fetch: ${response.status}`);
         }
         const chainData: ChainData[] = await response.json();
-        
+
         // Filter and sort chains by TVL, remove those with 0 TVL
         const topChains = chainData
           .filter(chain => chain.tvl > 0)
@@ -54,26 +54,28 @@ export default function ChainAnalytics() {
     fetchChainData();
   }, []);
 
-  if (loading) {
-    return <LoadingCard title="⛓️ Chain Analytics" />;
-  }
-
-  if (error || !data) {
-    return <ErrorCard title="⛓️ Chain Analytics" error={error || 'Unknown error'} />;
-  }
-
-  const sortedChains = [...data].sort((a, b) => {
-    if (sortBy === 'tvl') {
-      return b.tvl - a.tvl;
-    } else {
-      return a.name.localeCompare(b.name);
-    }
-  });
+  const sortedChains = useMemo(() => {
+    return [...data].sort((a, b) => {
+      if (sortBy === 'tvl') {
+        return b.tvl - a.tvl;
+      } else {
+        return a.name.localeCompare(b.name);
+      }
+    });
+  }, [data, sortBy]);
 
   // Memoize expensive calculations
   const { chartData, pieData, totalTvl } = useMemo(() => {
+    if (!sortedChains.length) {
+      return {
+        chartData: [],
+        pieData: [],
+        totalTvl: 0
+      };
+    }
+
     const total = sortedChains.reduce((sum, chain) => sum + chain.tvl, 0);
-    
+
     return {
       chartData: sortedChains.slice(0, 10).map(chain => ({
         name: chain.name.length > 12 ? chain.name.substring(0, 12) + '...' : chain.name,
@@ -89,6 +91,14 @@ export default function ChainAnalytics() {
     };
   }, [sortedChains]);
 
+  if (loading) {
+    return <LoadingCard title="⛓️ Chain Analytics" />;
+  }
+
+  if (error || !data) {
+    return <ErrorCard title="⛓️ Chain Analytics" error={error || 'Unknown error'} />;
+  }
+
   const toggleChainExpansion = (chainName: string) => {
     const newExpanded = new Set(expandedChains);
     if (newExpanded.has(chainName)) {
@@ -103,11 +113,11 @@ export default function ChainAnalytics() {
     <div className="bg-gray-900 rounded-lg p-6 border border-gray-800">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h3 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
-            <span className="text-2xl">⛓️</span>
+          <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+            <span className="text-lg">⛓️</span>
             Chain Analytics
           </h3>
-          <p className="text-gray-300 text-sm">
+          <p className="text-gray-300 text-xs">
             TVL and metrics comparison across blockchain networks
           </p>
         </div>
@@ -145,7 +155,7 @@ export default function ChainAnalytics() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {/* TVL Chart */}
         <div className="bg-gray-800 rounded-lg p-4">
-          <h4 className="text-white font-semibold mb-4">Top 10 Chains by TVL</h4>
+          <h4 className="text-white font-semibold mb-4 text-sm">Top 10 Chains by TVL</h4>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={chartData}>
               <CartesianGrid {...commonChartConfig.grid} />
@@ -172,7 +182,7 @@ export default function ChainAnalytics() {
 
         {/* Market Share Pie */}
         <div className="bg-gray-800 rounded-lg p-4">
-          <h4 className="text-white font-semibold mb-4">TVL Market Share</h4>
+          <h4 className="text-white font-semibold mb-4 text-sm">TVL Market Share</h4>
           <ResponsiveContainer width="100%" height={300}>
             <PieChart>
               <Pie

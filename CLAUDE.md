@@ -1,5 +1,13 @@
 # Claude Development Notes
 
+## Environment Variables
+
+The project uses environment variables stored in `.env.local` file. The following variables are configured:
+- `DEFILLAMA_API_KEY`: API key for DeFiLlama service
+- `NEXT_PUBLIC_DEFILLAMA_API_KEY`: Public-facing API key for client-side DeFiLlama API calls
+
+**Important**: Always retrieve and use the actual environment variables from `.env.local` file when needed. The API keys are already configured in this file.
+
 ## Critical Rules
 
 ### Data Integrity

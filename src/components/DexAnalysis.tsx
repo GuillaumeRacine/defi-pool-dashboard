@@ -90,7 +90,7 @@ export default function DexAnalysis() {
           throw new Error(`Failed to fetch: ${response.status}`);
         }
         const dexData: DexOverview = await response.json();
-        
+
         // Filter and sort DEX protocols by volume
         const topDexs = dexData.protocols
           .filter(protocol => protocol.total24h > 0)
@@ -108,14 +108,6 @@ export default function DexAnalysis() {
 
     fetchDexData();
   }, []);
-
-  if (loading) {
-    return <LoadingCard title="🔄 DEX Protocol Analysis" />;
-  }
-
-  if (error || !data) {
-    return <ErrorCard title="🔄 DEX Protocol Analysis" error={error || 'Unknown error'} />;
-  }
 
   const getVolumeForPeriod = (protocol: DexProtocol, period: string) => {
     switch (period) {
@@ -135,20 +127,31 @@ export default function DexAnalysis() {
     }
   };
 
-  const sortedProtocols = [...data.protocols].sort((a, b) => {
-    if (sortBy === 'volume') {
-      return getVolumeForPeriod(b, selectedPeriod) - getVolumeForPeriod(a, selectedPeriod);
-    } else {
-      const changeA = getChangeForPeriod(a, selectedPeriod) || 0;
-      const changeB = getChangeForPeriod(b, selectedPeriod) || 0;
-      return changeB - changeA;
-    }
-  });
+  const sortedProtocols = useMemo(() => {
+    if (!data) return [];
+    return [...data.protocols].sort((a, b) => {
+      if (sortBy === 'volume') {
+        return getVolumeForPeriod(b, selectedPeriod) - getVolumeForPeriod(a, selectedPeriod);
+      } else {
+        const changeA = getChangeForPeriod(a, selectedPeriod) || 0;
+        const changeB = getChangeForPeriod(b, selectedPeriod) || 0;
+        return changeB - changeA;
+      }
+    });
+  }, [data, sortBy, selectedPeriod]);
 
   // Memoize expensive calculations
   const { chartData, pieData, totalVolume } = useMemo(() => {
+    if (!sortedProtocols.length) {
+      return {
+        chartData: [],
+        pieData: [],
+        totalVolume: 0
+      };
+    }
+
     const total = sortedProtocols.reduce((sum, protocol) => sum + getVolumeForPeriod(protocol, selectedPeriod), 0);
-    
+
     return {
       chartData: sortedProtocols.slice(0, 10).map(protocol => ({
         name: protocol.displayName.length > 12 ? protocol.displayName.substring(0, 12) + '...' : protocol.displayName,
@@ -163,6 +166,14 @@ export default function DexAnalysis() {
       totalVolume: total
     };
   }, [sortedProtocols, selectedPeriod]);
+
+  if (loading) {
+    return <LoadingCard title="🔄 DEX Protocol Analysis" />;
+  }
+
+  if (error || !data) {
+    return <ErrorCard title="🔄 DEX Protocol Analysis" error={error || 'Unknown error'} />;
+  }
 
   const fetchHistoricalData = async (protocol: DexProtocol) => {
     if (historicalData.has(protocol.id) || loadingHistory.has(protocol.id)) {
