@@ -1,0 +1,32 @@
+{
+  "name": "defi-data-sync-jobs",
+  "version": "1.0.0",
+  "description": "Background jobs for syncing DeFiLlama data to local database",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "sync:protocols": "node src/jobs/sync-protocols.js",
+    "sync:pools": "node src/jobs/sync-pools.js",
+    "sync:chains": "node src/jobs/sync-chains.js",
+    "sync:historical": "node src/jobs/sync-historical.js",
+    "map:contracts": "node src/jobs/map-contracts.js",
+    "test": "node --test src/**/*.test.js"
+  },
+  "dependencies": {
+    "pg": "^8.11.3",
+    "node-cron": "^3.0.3",
+    "axios": "^1.6.2",
+    "winston": "^3.11.0",
+    "dotenv": "^16.3.1",
+    "p-limit": "^5.0.0",
+    "p-retry": "^6.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.4"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
