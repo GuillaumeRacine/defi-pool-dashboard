@@ -12,11 +12,6 @@ import { jobQueue } from './utils/job-queue.js';
 // Import job handlers
 import { syncProtocols } from './jobs/sync-protocols.js';
 import { syncPools } from './jobs/sync-pools.js';
-import { syncChains } from './jobs/sync-chains.js';
-import { syncHistorical } from './jobs/sync-historical.js';
-import { mapContracts } from './jobs/map-contracts.js';
-import { createDailySnapshots } from './jobs/create-snapshots.js';
-import { cleanupOldData } from './jobs/cleanup.js';
 
 dotenv.config();
 
@@ -51,13 +46,6 @@ class JobScheduler {
   registerJobs() {
     const jobConfigs = [
       {
-        name: 'sync-chains',
-        schedule: '0 1 * * *', // Daily at 1 AM
-        handler: syncChains,
-        priority: 'high',
-        description: 'Sync blockchain data from DeFiLlama'
-      },
-      {
         name: 'sync-protocols',
         schedule: '0 2 * * *', // Daily at 2 AM
         handler: syncProtocols,
@@ -70,34 +58,6 @@ class JobScheduler {
         handler: syncPools,
         priority: 'high',
         description: 'Sync pool data from DeFiLlama'
-      },
-      {
-        name: 'map-contracts',
-        schedule: '0 4 * * *', // Daily at 4 AM
-        handler: mapContracts,
-        priority: 'medium',
-        description: 'Map DeFiLlama pools to contract addresses'
-      },
-      {
-        name: 'create-snapshots',
-        schedule: '0 5 * * *', // Daily at 5 AM
-        handler: createDailySnapshots,
-        priority: 'medium',
-        description: 'Create daily snapshots for historical analysis'
-      },
-      {
-        name: 'sync-historical',
-        schedule: '0 6 * * 0', // Weekly on Sunday at 6 AM
-        handler: syncHistorical,
-        priority: 'low',
-        description: 'Sync historical data for missing periods'
-      },
-      {
-        name: 'cleanup-old-data',
-        schedule: '0 7 * * 0', // Weekly on Sunday at 7 AM
-        handler: cleanupOldData,
-        priority: 'low',
-        description: 'Clean up old logs and temporary data'
       }
     ];
 
