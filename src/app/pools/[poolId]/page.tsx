@@ -127,7 +127,7 @@ export default function PoolAnalyticsPage() {
     });
   };
 
-  const getValueForMetric = (point: PoolHistoricalPoint, metric: string): number | null => {
+  const getValueForMetric = (point: PoolTimeseriesPoint, metric: string): number | null => {
     switch (metric) {
       case 'tvlUsd': return point.tvlUsd || null;
       case 'apy': return point.apy || null;
