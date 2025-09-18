@@ -8,6 +8,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { defiLlamaAPI } from '@/lib/defi-api';
+import { getTopPools } from '@/lib/database';
 import PoolChart from './PoolChart';
 
 interface PoolData {
@@ -135,33 +136,70 @@ export default function HighTVLPoolsSection() {
       setLoading(true);
       setError(null);
 
-      const response = await defiLlamaAPI.getHighTVLPools(minTVL);
-      if (response.error) {
-        throw new Error(response.error);
-      }
+      console.log('🗄️ Loading pools from Supabase database...');
+      const dbPools = await getTopPools(minTVL, 100);
 
-      if (response.data) {
-        // Add mock inception dates to pools for demo purposes
-        const poolsWithInception = response.data.map((pool, index) => {
-          // Generate realistic inception dates (30-2000 days ago)
-          const daysAgo = 30 + Math.floor(Math.random() * 1970);
-          const inceptionDate = new Date();
-          inceptionDate.setDate(inceptionDate.getDate() - daysAgo);
-          
-          return {
-            ...pool,
-            inception: inceptionDate.toISOString()
-          };
-        });
-        
-        setPools(poolsWithInception);
+      if (dbPools && dbPools.length > 0) {
+        console.log(`✅ Loaded ${dbPools.length} pools from database`);
+
+        // Transform database format to component format
+        const transformedPools = dbPools.map((pool) => ({
+          pool: pool.defillama_pool_id,
+          chain: pool.chain,
+          project: pool.project,
+          symbol: pool.symbol,
+          tvlUsd: pool.tvl_usd,
+          apy: pool.apy,
+          apyBase: pool.apy_base,
+          apyReward: pool.apy_reward,
+          apyMean30d: pool.apy_mean_30d,
+          volumeUsd1d: pool.volume_usd_1d,
+          volumeUsd7d: pool.volume_usd_7d,
+          stablecoin: pool.stablecoin,
+          ilRisk: pool.il_risk,
+          exposure: pool.exposure,
+          poolMeta: pool.pool_meta,
+          underlyingTokens: pool.underlying_tokens,
+          url: pool.url,
+          mu: pool.mu,
+          sigma: pool.sigma,
+          count: pool.count,
+          outlier: pool.outlier,
+          inception: pool.inception
+        }));
+
+        setPools(transformedPools);
+        setLastUpdated(new Date());
       } else {
-        setPools([]);
-        if (!response.error) {
-          setError('No pool data available from API');
+        console.warn('⚠️ No pools found in database, falling back to API...');
+
+        // Fallback to API if database is empty
+        const response = await defiLlamaAPI.getHighTVLPools(minTVL);
+        if (response.error) {
+          throw new Error(response.error);
         }
+
+        if (response.data) {
+          // Add mock inception dates to pools for demo purposes
+          const poolsWithInception = response.data.map((pool, index) => {
+            // Generate realistic inception dates (30-2000 days ago)
+            const daysAgo = 30 + Math.floor(Math.random() * 1970);
+            const inceptionDate = new Date();
+            inceptionDate.setDate(inceptionDate.getDate() - daysAgo);
+
+            return {
+              ...pool,
+              inception: inceptionDate.toISOString()
+            };
+          });
+
+          setPools(poolsWithInception);
+        } else {
+          setPools([]);
+          setError('No pool data available from database or API');
+        }
+        setLastUpdated(new Date());
       }
-      setLastUpdated(new Date());
     } catch (err) {
       console.error('Failed to load pools data:', err);
       setError(err instanceof Error ? err.message : 'Failed to load pools data');
@@ -885,7 +923,7 @@ export default function HighTVLPoolsSection() {
       </div>
 
       <div className="mt-4 text-xs text-gray-500 text-center">
-        Data provided by DefiLlama • APY calculations may include estimated rewards • Always do your own research
+        Data from Supabase warehouse (synced from DefiLlama) • APY calculations may include estimated rewards • Always do your own research
       </div>
     </section>
   );
