@@ -750,7 +750,7 @@ class DefiLlamaAPI {
   private hasNoExtremeOutliers(timeseries: PoolTimeseriesPoint[]): boolean {
     if (timeseries.length < 10) return true;
 
-    const values = timeseries.map(point => point.tvl_usd).filter(v => v > 0);
+    const values = timeseries.map(point => point.tvl_usd).filter((v): v is number => v !== undefined && v > 0);
     if (values.length === 0) return true;
 
     const mean = values.reduce((sum, val) => sum + val, 0) / values.length;

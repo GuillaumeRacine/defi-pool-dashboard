@@ -5,9 +5,12 @@
 
 export interface PoolTimeseriesPoint {
   date: string;
+  timestamp?: string | number; // Support both string and number timestamps
   tvl_usd?: number;
   tvlUsd?: number; // Support both formats
   apy?: number;
+  apyBase?: number; // Base APY component
+  apyReward?: number; // Reward APY component
   volume_24h?: number;
   volumeUsd1d?: number; // Support 1d volume format
   fees_24h?: number;

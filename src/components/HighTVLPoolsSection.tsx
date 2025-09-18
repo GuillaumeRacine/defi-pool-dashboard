@@ -476,7 +476,6 @@ export default function HighTVLPoolsSection() {
             <button
               onClick={() => {
                 setSearchTerm('');
-                setSelectedChain('all');
               }}
               className="mt-2 text-blue-400 hover:text-blue-300 text-sm"
             >
@@ -658,19 +657,19 @@ export default function HighTVLPoolsSection() {
                           {shouldShowField(pool.apyBase) && (
                             <div className="flex justify-between">
                               <span className="text-gray-400 text-xs">Base APY:</span>
-                              <span className="text-gray-300 text-xs">{pool.apyBase.toFixed(2)}%</span>
+                              <span className="text-gray-300 text-xs">{pool.apyBase?.toFixed(2) || 'N/A'}%</span>
                             </div>
                           )}
                           {shouldShowField(pool.apyReward) && (
                             <div className="flex justify-between">
                               <span className="text-gray-400 text-xs">Reward APY:</span>
-                              <span className="text-gray-300 text-xs">{pool.apyReward.toFixed(2)}%</span>
+                              <span className="text-gray-300 text-xs">{pool.apyReward?.toFixed(2) || 'N/A'}%</span>
                             </div>
                           )}
                           {shouldShowField(pool.apyMean30d) && (
                             <div className="flex justify-between">
                               <span className="text-gray-400 text-xs">APY Mean (30D):</span>
-                              <span className="text-gray-300 text-xs">{pool.apyMean30d.toFixed(2)}%</span>
+                              <span className="text-gray-300 text-xs">{pool.apyMean30d?.toFixed(2) || 'N/A'}%</span>
                             </div>
                           )}
                           {(() => {
@@ -741,13 +740,13 @@ export default function HighTVLPoolsSection() {
                           {shouldShowField(pool.mu) && (
                             <div className="flex justify-between">
                               <span className="text-gray-400 text-xs">Mu (μ):</span>
-                              <span className="text-gray-300 text-xs font-mono">{pool.mu.toFixed(4)}</span>
+                              <span className="text-gray-300 text-xs font-mono">{pool.mu?.toFixed(4) || 'N/A'}</span>
                             </div>
                           )}
                           {shouldShowField(pool.sigma) && (
                             <div className="flex justify-between">
                               <span className="text-gray-400 text-xs">Sigma (σ):</span>
-                              <span className="text-gray-300 text-xs font-mono">{pool.sigma.toFixed(4)}</span>
+                              <span className="text-gray-300 text-xs font-mono">{pool.sigma?.toFixed(4) || 'N/A'}</span>
                             </div>
                           )}
                           {(pool.mu && pool.sigma && pool.sigma !== 0) && (

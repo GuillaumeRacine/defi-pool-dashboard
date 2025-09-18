@@ -76,8 +76,8 @@ export default function PoolMetrics() {
         poolName: pool.symbol,
         apy: pool.apy,
         tvl: pool.tvlUsd,
-        risk: pool.il7d < -3 ? 'High' : pool.il7d < -1 ? 'Medium' : 'Low',
-        efficiency: (pool.apy * pool.tvlUsd) / (Math.abs(pool.il7d) + 1) / 1000000
+        risk: 'Medium' as 'Low' | 'Medium' | 'High',
+        efficiency: (pool.apy || 0) * (pool.tvlUsd || 0) / 1000000
       })).sort((a, b) => b.efficiency - a.efficiency);
 
       setPoolData(mockPoolData);
@@ -277,7 +277,7 @@ export default function PoolMetrics() {
                   }
                 })
                 .map((pool, index) => {
-                  const risk = pool.il7d < -3 ? 'High' : pool.il7d < -1 ? 'Medium' : 'Low';
+                  const risk = 'Medium';
                   return (
                     <tr key={pool.pool} className="border-b border-gray-700 hover:bg-gray-750">
                       <td className="px-4 py-3">

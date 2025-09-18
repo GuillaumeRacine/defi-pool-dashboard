@@ -144,7 +144,7 @@ export default function DexVolumeAnalysis() {
                   cx="50%"
                   cy="50%"
                   labelLine={false}
-                  label={({ name, marketShare }) => `${name}: ${marketShare}%`}
+                  label={(props: any) => `${props.name}: ${props.marketShare}%`}
                   outerRadius={70}
                   fill="#8884d8"
                   dataKey="marketShare"

@@ -28,7 +28,7 @@ export function createProxyResponse(data: any, cacheSeconds = 300) {
 }
 
 // Create standardized error response
-export function createErrorResponse(message: string, status = 500) {
+export function createErrorResponse(message: string | Error, status = 500) {
   return NextResponse.json(
     { 
       error: 'API Error', 
