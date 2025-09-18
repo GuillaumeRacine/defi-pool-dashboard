@@ -9,7 +9,9 @@ export interface PoolTimeseriesPoint {
   tvlUsd?: number; // Support both formats
   apy?: number;
   volume_24h?: number;
+  volumeUsd1d?: number; // Support 1d volume format
   fees_24h?: number;
+  feesUsd1d?: number; // Support 1d fees format
 }
 
 export interface PoolComposition {
